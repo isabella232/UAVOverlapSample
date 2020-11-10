@@ -1,0 +1,7 @@
+.vs/
+./Debug/
+x64/
+*.cso
+./Release/
+UAVOverlapSample.vcxproj.user
+UAVOverlapSample.vcxproj.filters
