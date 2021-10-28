@@ -79,6 +79,18 @@ extern "C" {
     //////////////////////////////////////////////////////////////////////////
 
 #ifdef INTC_IGDEXT_D3D11
+
+    struct INTC_D3D11_TEXTURE2D_DESC
+    {                      
+        union
+        {
+            D3D11_TEXTURE2D_DESC                *pD3D11Desc;
+        };
+
+        // Emulated Typed 64bit Atomics
+        BOOL                                    EmulatedTyped64bitAtomics;
+    };
+
 #endif //INTC_IGDEXT_D3D11
 
     //////////////////////////////////////////////////////////////////////////
@@ -98,12 +110,56 @@ extern "C" {
     {
         union
         {
-            ::D3D12_COMMAND_QUEUE_DESC              *pD3D12Desc;
+            D3D12_COMMAND_QUEUE_DESC                *pD3D12Desc;
         };
 
         INTC_D3D12_COMMAND_QUEUE_THROTTLE_POLICY     CommandThrottlePolicy;         /// Command Queue Throttle Policy
     };
     using INTC_D3D12_COMMAND_QUEUE_DESC = INTC_D3D12_COMMAND_QUEUE_DESC_0001;
+
+    enum INTC_D3D12_SHADER_INPUT_TYPE
+    {
+        NONE        = 0,            // ??
+        CM          = 1,            // CM shader
+        CM_SPIRV    = 2,            // CM FE generated SPIRV
+        OpenCL      = 3,            // OpenCL shader
+        SPIRV       = 4,            // ??
+        HLSL        = 5,            // ??
+        CL_BIN      = 6,            // CL FE/BE generated Binary
+    };
+
+    //////////////////////////////////////////////////////////////////////////
+    /// @brief Compute Pipeline State Descriptor:
+    struct INTC_D3D12_COMPUTE_PIPELINE_STATE_DESC
+    {
+        union
+        {
+            D3D12_COMPUTE_PIPELINE_STATE_DESC*      pD3D12Desc;
+        };
+
+        /// Extension shader bypass
+        D3D12_SHADER_BYTECODE                       CS;                     /// Compute Shader Bytecode
+        INTC_D3D12_SHADER_INPUT_TYPE                ShaderInputType;        /// Input Shader Type
+        void*                                       CompileOptions;         /// Compilation Options
+    };
+
+    struct INTC_D3D12_RESOURCE_DESC
+    {                      
+        union
+        {
+            D3D12_RESOURCE_DESC                 *pD3D12Desc;
+            //::D3D12_RESOURCE_DESC1              *pD3D12Desc1;         // Future definitions
+        };
+
+        // Reserved Resources Texture2D Array with Mip Packing
+        BOOL                                    Texture2DArrayMipPack;
+    };
+
+    struct INTC_D3D12_RESOURCE_DESC_0001 : INTC_D3D12_RESOURCE_DESC
+    {
+        // Emulated Typed 64bit Atomics
+        BOOL                                    EmulatedTyped64bitAtomics;
+    };
 
 #endif //INTC_IGDEXT_D3D12
 
@@ -202,6 +258,31 @@ extern "C" {
         UINT                    alignedByteOffsetForArgs,
         UINT                    byteStrideForArgs );
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief SetDepthBounds method enables you to change the depth bounds dynamically.
+    /// @param pExtensionContext A pointer to the extension context associated with the current Device.
+    /// @param bEnable Enable or disable depth bounds test.
+    /// @param Min Specifies the minimum depth bounds. The default value is 0. NaN values silently convert to 0.
+    /// @param Max Specifies the maximum depth bounds. The default value is 1. NaN values silently convert to 0.
+    void INTC_D3D11_SetDepthBounds(
+        INTCExtensionContext*   pExtensionContext,
+        BOOL                    bEnable,
+        FLOAT                   Min,
+        FLOAT                   Max );
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Create an array of 2D textures. Supported extensions:
+    ///        Emulated64bitTypedAtomics - Enable usage of 64bit Typed Atomics on a texture created
+    /// @param pExtensionContext A pointer to the extension context associated with the current Device.
+    /// @param pDesc A pointer to a INTC_D3D11_TEXTURE2D_DESC structure that describes a 2D texture resource.
+    /// @param pInitialData A pointer to an array of D3D11_SUBRESOURCE_DATA structures that describe subresources for the 2D texture resource.
+    /// @param ppTexture2D A pointer to a buffer that receives a pointer to a ID3D11Texture2D interface for the created texture.
+    HRESULT INTC_D3D11_CreateTexture2D(
+        INTCExtensionContext*               pExtensionContext,
+        const INTC_D3D11_TEXTURE2D_DESC*    pDesc,
+        const D3D11_SUBRESOURCE_DATA*       pInitialData,
+        ID3D11Texture2D**                   ppTexture2D );
+
 #endif //INTC_IGDEXT_D3D11
 
     //////////////////////////////////////////////////////////////////////////
@@ -222,6 +303,124 @@ extern "C" {
         const INTC_D3D12_COMMAND_QUEUE_DESC*        pDesc,
         REFIID                                      riid,
         void**                                      ppCommandQueue );
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Creates a compute pipeline state object.
+    /// @param pExtensionContext A pointer to the extension context associated with the current Device.
+    /// @param pDesc A pointer to a D3D12_COMPUTE_PIPELINE_STATE_DESC structure that describes compute pipeline state.
+    /// @param riid The globally unique identifier (GUID) for the pipeline state interface.
+    /// @param ppPipelineState A pointer to a memory block that receives a pointer to the ID3D12PipelineState interface for the pipeline state object.
+    /// @returns HRESULT Returns S_OK if it was successful.
+    HRESULT INTC_D3D12_CreateComputePipelineState(
+        INTCExtensionContext*                           pExtensionContext,
+        const INTC_D3D12_COMPUTE_PIPELINE_STATE_DESC*   pDesc,
+        REFIID                                          riid,
+        void**                                          ppPipelineState);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Creates a resource that is reserved, which is not yet mapped to any pages in a heap. Supported extensions:
+    ///        Texture2DArrayMipPack - Enables Reserved Resources Texture2D Array with Mip Packing
+    /// @param pExtensionContext A pointer to the extension context associated with the current Device
+    /// @param pDesc A pointer to a overridden D3D12_RESOURCE_DESC structure that describes the resource.
+    /// @param InitialState The initial state of the resource, as a bitwise-OR'd combination of D3D12_RESOURCE_STATES enumeration constants.
+    /// @param pOptimizedClearValue Specifies a D3D12_CLEAR_VALUE that describes the default value for a clear color.
+    /// @param riid The globally unique identifier (GUID) for the resource interface.
+    /// @param ppvResource A pointer to a memory block that receives a pointer to the resource.
+    /// @returns HRESULT Returns S_OK if it was successful.
+    HRESULT INTC_D3D12_CreateReservedResource(
+        INTCExtensionContext*                       pExtensionContext,
+        const INTC_D3D12_RESOURCE_DESC*             pDesc,
+        D3D12_RESOURCE_STATES                       InitialState,
+        const D3D12_CLEAR_VALUE*                    pOptimizedClearValue,
+        REFIID                                      riid,
+        void**                                      ppvResource );
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Creates both a resource and an implicit heap, such that the heap is big enough to contain the entire resource and the resource is mapped to the heap. Supported extensions:
+    ///        Texture2DArrayMipPack - Enables Reserved Resources Texture2D Array with Mip Packing
+    ///        Emulated64bitTypedAtomics - Enable usage of 64bit Typed Atomics on a texture created
+    /// @param pExtensionContext A pointer to a D3D12_HEAP_PROPERTIES structure that provides properties for the resource's heap.
+    /// @param pHeapProperties A pointer to the ID3D12Heap interface that represents the heap in which the resource is placed.
+    /// @param HeapFlags The offset, in bytes, to the resource.
+    /// @param pDesc A pointer to a overridden D3D12_RESOURCE_DESC structure that describes the resource.
+    /// @param InitialResourceState The initial state of the resource, as a bitwise-OR'd combination of D3D12_RESOURCE_STATES enumeration constants.
+    /// @param pOptimizedClearValue Specifies a D3D12_CLEAR_VALUE that describes the default value for a clear color.
+    /// @param riidResource The globally unique identifier (GUID) for the resource interface.
+    /// @param ppvResource A pointer to memory that receives the requested interface pointer to the created resource object.
+    /// @returns HRESULT Returns S_OK if it was successful.
+    HRESULT INTC_D3D12_CreateCommittedResource(
+        INTCExtensionContext*                       pExtensionContext,
+        const D3D12_HEAP_PROPERTIES*                pHeapProperties,
+        D3D12_HEAP_FLAGS                            HeapFlags,
+        const INTC_D3D12_RESOURCE_DESC_0001*        pDesc,
+        D3D12_RESOURCE_STATES                       InitialResourceState,
+        const D3D12_CLEAR_VALUE*                    pOptimizedClearValue,
+        REFIID                                      riidResource,
+        void**                                      ppvResource );
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Creates a resource that is placed in a specific heap. Supported extensions:
+	///        Emulated64bitTypedAtomics - Enable usage of 64bit Typed Atomics on a texture created
+    /// @param pExtensionContext A pointer to the extension context associated with the current Device
+    /// @param pHeap A pointer to the ID3D12Heap interface that represents the heap in which the resource is placed.
+    /// @param HeapOffset The offset, in bytes, to the resource.
+    /// @param pDesc A pointer to a overridden D3D12_RESOURCE_DESC structure that describes the resource.
+    /// @param InitialState The initial state of the resource, as a bitwise-OR'd combination of D3D12_RESOURCE_STATES enumeration constants.
+    /// @param pOptimizedClearValue Specifies a D3D12_CLEAR_VALUE that describes the default value for a clear color.
+    /// @param riid The globally unique identifier (GUID) for the resource interface.
+    /// @param ppvResource A pointer to a memory block that receives a pointer to the resource.
+    /// @returns HRESULT Returns S_OK if it was successful.
+    HRESULT INTC_D3D12_CreatePlacedResource(
+        INTCExtensionContext*                       pExtensionContext,
+        ID3D12Heap*                                 pHeap,
+        UINT64                                      HeapOffset,
+        const INTC_D3D12_RESOURCE_DESC_0001*        pDesc,
+        D3D12_RESOURCE_STATES                       InitialState,
+        const D3D12_CLEAR_VALUE*                    pOptimizedClearValue,
+        REFIID                                      riid,
+        void**                                      ppvResource );
+
+    HRESULT INTC_D3D12_CreateHostRTASResource(
+        INTCExtensionContext*                                               pExtensionContext,
+        size_t                                                              SizeInBytes,
+        DWORD                                                               Flags,
+        REFIID                                                              riidResource,
+        void**                                                              ppvResource );
+
+    void INTC_D3D12_BuildRaytracingAccelerationStructure_Host(
+        INTCExtensionContext*                                               pExtensionContext,
+        const D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC*           pDesc,
+        const D3D12_GPU_VIRTUAL_ADDRESS*                                    pInstanceGPUVAs,
+        UINT                                                                NumInstances );
+
+    void INTC_D3D12_CopyRaytracingAccelerationStructure_Host(
+        INTCExtensionContext*                                               pExtensionContext,
+        void*                                                               DestAccelerationStructureData,
+        const void*                                                         SourceAccelerationStructureData,
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE                   Mode );
+
+    void INTC_D3D12_EmitRaytracingAccelerationStructurePostbuildInfo_Host(
+        INTCExtensionContext*                                               pExtensionContext,
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_TYPE         InfoType,
+        void*                                                               DestBuffer,
+        const void*                                                         SourceRTAS );
+
+    void INTC_D3D12_GetRaytracingAccelerationStructurePrebuildInfo_Host(
+        INTCExtensionContext*                                               pExtensionContext,
+        const D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS*         pDesc,
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO*              pInfo );
+
+    void INTC_D3D12_TransferHostRTAS(
+        INTCExtensionContext*                                               pExtensionContext,
+        ID3D12GraphicsCommandList*                                          pCommandList,
+        D3D12_GPU_VIRTUAL_ADDRESS                                           DestAccelerationStructureData,
+        D3D12_GPU_VIRTUAL_ADDRESS                                           SrcAccelerationStructureData,
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE                   Mode );
+
+    void INTC_D3D12_SetDriverEventMetadata(
+        INTCExtensionContext*                                               pExtensionContext,
+        ID3D12GraphicsCommandList*                                          pCommandList,
+        UINT64                                                              Metadata );
 
 #endif //INTC_IGDEXT_D3D12
 

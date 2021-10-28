@@ -17,7 +17,7 @@ Loads the Extension Framework .dll into the currently active process. This step 
 ``` 
 HRESULT INTC_D3D11_GetSupportedVersions(
     ID3D11Device*          pDevice,
-    INTCExtensionVersion** pSupportedExtVersions,
+    INTCExtensionVersion* pSupportedExtVersions,
     uint32_t*              pSupportedExtVersionsCount); 
 ```
 
